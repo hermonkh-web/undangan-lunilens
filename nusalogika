@@ -1,0 +1,987 @@
+import React, { useState, useEffect } from 'react';
+import { Play, CheckCircle, AlertTriangle, Truck, Anchor, HelpCircle, Map, ArrowRight, RefreshCw, BookOpen, BrainCircuit, XCircle, User, Users, ClipboardList, Lightbulb, AlertOctagon, Clock, Trophy, Medal, Home, Key, Lock, Sparkles, Loader2 } from 'lucide-react';
+
+// --- Konfigurasi API Gemini ---
+const apiKey = ""; // API Key akan diisi otomatis oleh environment saat runtime
+
+// --- Data Level & Skenario ---
+const gameLevels = [
+    {
+        id: 'L1',
+        title: "Fase 1: Dekomposisi & Algoritma",
+        description: "Pecah masalah besar menjadi langkah-langkah kecil yang urut.",
+        tip: "Fokus pada 'Prioritas Nyawa' di atas 'Harta Benda'. Urutan harus logis dari persiapan -> aksi.",
+        questions: [
+            {
+                id: 'q1_1',
+                title: "Kasus 1: Tanggap Bencana",
+                instruction: "Desa Sukamaju terkena banjir. Urutkan langkah prioritas penanganan bencana!",
+                type: "sequence",
+                items: [
+                    { id: 'evac', text: "Evakuasi Warga", icon: Anchor },
+                    { id: 'tent', text: "Dirikan Tenda Darurat", icon: Map },
+                    { id: 'cook', text: "Dapur Umum & Logistik", icon: CheckCircle },
+                    { id: 'dist', text: "Distribusi Makanan", icon: Truck }
+                ],
+                correctOrder: ['evac', 'tent', 'cook', 'dist'],
+                explanation: "Nyawa (evakuasi) selalu menjadi prioritas utama dibanding logistik."
+            },
+            {
+                id: 'q1_2',
+                title: "Kasus 2: Pameran Sekolah",
+                instruction: "Kamu ketua panitia Pameran Seni. Urutkan alur kerja yang logis dari awal sampai akhir.",
+                type: "sequence",
+                items: [
+                    { id: 'tema', text: "Tentukan Tema & Konsep", icon: BookOpen },
+                    { id: 'dana', text: "Susun Anggaran & Proposal", icon: Map },
+                    { id: 'promo', text: "Promosi & Sebar Undangan", icon: Truck },
+                    { id: 'main', text: "Pelaksanaan Acara", icon: Play }
+                ],
+                correctOrder: ['tema', 'dana', 'promo', 'main'],
+                explanation: "Konsep harus matang dulu sebelum minta dana. Promosi dilakukan setelah acara siap."
+            },
+            {
+                id: 'q1_3',
+                title: "Kasus 3: Pertolongan Pertama (P3K)",
+                instruction: "Temanmu tersiram air panas di kantin. Urutkan penanganan luka bakar yang benar.",
+                type: "sequence",
+                items: [
+                    { id: 'water', text: "Siram air mengalir (10-20 mnt)", icon: Anchor },
+                    { id: 'clean', text: "Tutup dengan kain bersih/kasa", icon: Map },
+                    { id: 'doc', text: "Bawa ke UKS/Dokter", icon: Truck },
+                    { id: 'salep', text: "Beri obat/salep (saran dokter)", icon: CheckCircle }
+                ],
+                correctOrder: ['water', 'clean', 'doc', 'salep'],
+                explanation: "Dinginkan luka dulu untuk stop kerusakan jaringan, baru tutup agar steril."
+            }
+        ]
+    },
+    {
+        id: 'L2',
+        title: "Fase 2: Abstraksi & Logika Kondisional",
+        description: "Analisis data dan ambil keputusan berdasarkan kondisi (IF-ELSE).",
+        tip: "Perhatikan kata kunci 'SYARAT WAJIB'. Jika satu syarat gagal, maka opsi itu invalid (Logika AND).",
+        questions: [
+            {
+                id: 'q2_1',
+                title: "Kasus 1: Logistik Banjir",
+                instruction: "Pilih kendaraan yang TEPAT untuk menembus banjir berdasarkan data.",
+                type: "logic_choice",
+                dataContext: { waterLevel: "80 cm", terrain: "Berlumpur", weather: "Hujan" },
+                options: [
+                    { id: 'van', label: "Mobil Van", spec: "Max air 50cm", correct: false, reason: "Gagal! Mesin terendam (Air > 50cm)." },
+                    { id: 'boat', label: "Perahu Karet", spec: "Butuh air dalam", correct: false, reason: "Gagal! Air terlalu dangkal/lumpur." },
+                    { id: 'truck', label: "Truk Unimog 4x4", spec: "Max air 120cm", correct: true, reason: "Sukses! Tinggi & kuat di lumpur." },
+                    { id: 'motor', label: "Motor Trail", spec: "Max air 30cm", correct: false, reason: "Gagal! Langsung mogok." }
+                ],
+                explanation: "IF air > 50cm THEN Van is False. IF lumpur THEN Boat is False."
+            },
+            {
+                id: 'q2_2',
+                title: "Kasus 2: Seleksi Ketua OSIS",
+                instruction: "Siapa kandidat paling ideal berdasarkan syarat: Nilai > 80 DAN Pernah Memimpin?",
+                type: "logic_choice",
+                dataContext: { syarta: "Nilai Rata-rata > 80", syaratb: "Pengalaman Memimpin", status: "Wajib Penuhi Keduanya" },
+                options: [
+                    { id: 'a', label: "Andi", spec: "Nilai: 90, Pengalaman: Tidak Ada", correct: false, reason: "Gagal di syarat kepemimpinan." },
+                    { id: 'b', label: "Budi", spec: "Nilai: 75, Pengalaman: Ketua Kelas", correct: false, reason: "Gagal di syarat akademis." },
+                    { id: 'c', label: "Citra", spec: "Nilai: 85, Pengalaman: Ketua Ekskul", correct: true, reason: "Lolos! Memenuhi kedua syarat (AND Logic)." },
+                    { id: 'd', label: "Deni", spec: "Nilai: 82, Pengalaman: Anggota Biasa", correct: false, reason: "Gagal di syarat kepemimpinan." }
+                ],
+                explanation: "Logika AND: Kedua kondisi harus bernilai TRUE."
+            },
+            {
+                id: 'q2_3',
+                title: "Kasus 3: Paket Internet Hemat",
+                instruction: "Kamu punya Rp 50.000. Butuh kuota besar untuk zoom meeting (video). Pilih yang paling efisien!",
+                type: "logic_choice",
+                dataContext: { budget: "Rp 50.000", need: "Video Conference (Boros Kuota)", durasi: "1 Hari Ini" },
+                options: [
+                    { id: 'a', label: "Paket Chat", spec: "Unlimited WA, Rp 10rb", correct: false, reason: "Tidak bisa untuk Zoom video." },
+                    { id: 'b', label: "Paket Harian", spec: "10GB (24 Jam), Rp 15rb", correct: true, reason: "Efisien! Cukup untuk Zoom seharian & murah." },
+                    { id: 'c', label: "Paket Bulanan", spec: "2GB (30 Hari), Rp 45rb", correct: false, reason: "Kuota terlalu sedikit untuk video." },
+                    { id: 'd', label: "Paket Gaming", spec: "Unlimited Game, Rp 20rb", correct: false, reason: "Salah jenis kuota." }
+                ],
+                explanation: "Abstraksi: Fokus pada kebutuhan 'Video' (Butuh GB besar) dan 'Hari ini'."
+            }
+        ]
+    },
+    {
+        id: 'L3',
+        title: "Fase 3: Pengenalan Pola & Efisiensi",
+        description: "Kenali pola masalah untuk menentukan prioritas paling mendesak.",
+        tip: "Cari pola 'Urgensi'. Mana yang dampaknya paling fatal jika ditunda? Itu yang dikerjakan duluan.",
+        questions: [
+            {
+                id: 'q3_1',
+                title: "Kasus 1: Prioritas Bantuan",
+                instruction: "Posko mana yang harus dikirim logistik DULUAN?",
+                type: "pattern_choice",
+                options: [
+                    { id: 'A', label: "Posko A", status: "Stok: 2 hari", pop: "Dewasa", correct: false, reason: "Masih aman 2 hari." },
+                    { id: 'B', label: "Posko B", status: "Stok: Habis", pop: "Lansia & Bayi", correct: true, reason: "Prioritas Tertinggi (Stok Habis + Rentan)." },
+                    { id: 'C', label: "Posko C", status: "Stok: 1 hari", pop: "Remaja", correct: false, reason: "Mendesak tapi kalah prioritas dari Posko B." }
+                ],
+                explanation: "Pola: Urgensi = Sisa Stok Terendah + Tingkat Kerentanan Tertinggi."
+            },
+            {
+                id: 'q3_2',
+                title: "Kasus 2: Dana Kegiatan",
+                instruction: "Dana OSIS dipotong 50%. Mana pengeluaran yang harus DICORET/DIHAPUS?",
+                type: "pattern_choice",
+                options: [
+                    { id: 'a', label: "Sewa Panggung & Sound", status: "Inti Acara", correct: false, reason: "Ini kebutuhan primer acara." },
+                    { id: 'b', label: "Konsumsi Panitia", status: "Kesehatan", correct: false, reason: "Panitia butuh makan untuk bekerja." },
+                    { id: 'c', label: "Dekorasi Mewah & Doorprize", status: "Pelengkap", correct: true, reason: "Tepat! Ini adalah kebutuhan sekunder/tersier." }
+                ],
+                explanation: "Efisiensi: Hapus bagian 'Nice to have' (Dekor), pertahankan 'Must have' (Panggung)."
+            },
+            {
+                id: 'q3_3',
+                title: "Kasus 3: Rute Kurir",
+                instruction: "Kurir harus antar paket ke 3 rumah sejalan. Mana urutan paling efisien bensin?",
+                type: "pattern_choice",
+                options: [
+                    { id: 'a', label: "Rumah Ujung -> Tengah -> Depan", status: "Bolak-balik", correct: false, reason: "Boros bensin karena mundur lagi." },
+                    { id: 'b', label: "Rumah Depan -> Tengah -> Ujung", status: "Searah", correct: true, reason: "Efisien! Sekali jalan searah." },
+                    { id: 'c', label: "Rumah Tengah -> Ujung -> Depan", status: "Acak", correct: false, reason: "Sangat tidak efisien." }
+                ],
+                explanation: "Pola Linear: Menyelesaikan tugas yang searah untuk hemat sumber daya."
+            }
+        ]
+    }
+];
+
+// Data Awal Leaderboard (Simulasi)
+const initialLeaderboardData = [
+    { name: "Mr. Hermon", score: 900, id: 'sys1' },
+    { name: "Kelompok Turing", score: 700, id: 'sys2' },
+    { name: "Kelompok Habibie", score: 600, id: 'sys3' },
+];
+
+export default function App() {
+    // --- State Management ---
+    const [screen, setScreen] = useState('login'); 
+    const [playerName, setPlayerName] = useState('');
+    const [levelIdx, setLevelIdx] = useState(0);
+    const [questionIdx, setQuestionIdx] = useState(0);
+    const [score, setScore] = useState(0);
+    const [sequence, setSequence] = useState([]); 
+    const [history, setHistory] = useState({ correct: 0, total: 0 });
+
+    // Leaderboard State
+    const [leaderboard, setLeaderboard] = useState(initialLeaderboardData);
+
+    // State Timer
+    const [timeLeft, setTimeLeft] = useState(45); 
+
+    // State Konfirmasi & Tips & Admin
+    const [confirmModal, setConfirmModal] = useState({ show: false, action: null, message: "" });
+    const [selectedChoiceOption, setSelectedChoiceOption] = useState(null); 
+    const [showTip, setShowTip] = useState(false);
+    
+    // ADMIN ANSWER KEY STATES
+    const [showAdminModal, setShowAdminModal] = useState(false);
+    const [adminPassword, setAdminPassword] = useState("");
+    const [showAnswerKey, setShowAnswerKey] = useState(false);
+    const [adminError, setAdminError] = useState("");
+
+    // GEMINI AI STATES
+    const [isAiLoading, setIsAiLoading] = useState(false);
+    const [aiHint, setAiHint] = useState("");
+    const [aiAnalysis, setAiAnalysis] = useState("");
+    const [showAiModal, setShowAiModal] = useState(false);
+
+    const currentLevel = gameLevels[levelIdx];
+    const currentQuestion = currentLevel.questions[questionIdx];
+
+    // --- Actions ---
+
+    const handleLogin = (e) => {
+        e.preventDefault();
+        if (playerName.trim()) {
+            setScreen('welcome');
+        }
+    };
+
+    const startGame = () => {
+        setScreen('game');
+        setScore(0);
+        setLevelIdx(0);
+        setQuestionIdx(0);
+        setSequence([]);
+        setHistory({ correct: 0, total: 0 });
+        setShowTip(false);
+        setConfirmModal({ show: false, action: null, message: "" });
+        setSelectedChoiceOption(null);
+        setTimeLeft(45); 
+        setShowAnswerKey(false);
+        setAiHint(""); // Reset AI hint
+        setAiAnalysis(""); // Reset AI analysis
+    };
+
+    // Fungsi Timer
+    useEffect(() => {
+        if (screen === 'game' && !confirmModal.show && !showAiModal) {
+            if (timeLeft <= 0) {
+                proceedNext(false); 
+                return;
+            }
+
+            const timerId = setTimeout(() => {
+                setTimeLeft(prev => prev - 1);
+            }, 1000);
+
+            return () => clearTimeout(timerId);
+        }
+    }, [timeLeft, screen, confirmModal.show, showAiModal]);
+
+    // Fungsi Lanjut & Selesai
+    const proceedNext = (isCorrect) => {
+        const addedScore = isCorrect ? 100 : 0;
+        const currentTotalScore = score + addedScore;
+
+        setSequence([]);
+        setSelectedChoiceOption(null);
+        setConfirmModal({ show: false, action: null, message: "" });
+        setShowTip(false); 
+        setTimeLeft(45); 
+        setAiHint(""); // Hapus hint lama saat pindah soal
+
+        if (isCorrect) setScore(prev => prev + 100);
+        setHistory(prev => ({
+            correct: prev.correct + (isCorrect ? 1 : 0),
+            total: prev.total + 1
+        }));
+
+        if (questionIdx < currentLevel.questions.length - 1) {
+            setQuestionIdx(prev => prev + 1);
+        } 
+        else if (levelIdx < gameLevels.length - 1) {
+            setLevelIdx(prev => prev + 1);
+            setQuestionIdx(0);
+        } 
+        else {
+            handleFinishGame(currentTotalScore);
+        }
+    };
+
+    const handleFinishGame = (finalScore) => {
+        const newEntry = { 
+            name: playerName, 
+            score: finalScore, 
+            id: Date.now().toString() 
+        };
+        const updatedLeaderboard = [...leaderboard, newEntry].sort((a, b) => b.score - a.score);
+        setLeaderboard(updatedLeaderboard);
+        setScreen('result');
+    };
+
+    const handleLogout = () => {
+        setPlayerName('');
+        setScreen('login');
+        setScore(0);
+        setLevelIdx(0);
+        setQuestionIdx(0);
+        setShowAnswerKey(false);
+    };
+
+    const requestLogout = () => {
+        setConfirmModal({
+            show: true,
+            message: "Yakin ingin kembali ke halaman utama? Progres permainan akan hilang.",
+            action: 'logout'
+        });
+    };
+
+    // --- GEMINI AI INTEGRATION ---
+
+    const callGeminiHint = async () => {
+        setIsAiLoading(true);
+        setShowAiModal(true);
+        setAiHint(""); // Clear previous hint
+
+        try {
+            const prompt = `
+                Kamu adalah guru informatika bernama Mr. Hermon yang bijaksana dan suka metode Sokratis.
+                Siswa sedang mengerjakan soal logika berikut:
+                Judul: ${currentQuestion.title}
+                Instruksi: ${currentQuestion.instruction}
+                Data/Konteks: ${JSON.stringify(currentQuestion.dataContext || {})}
+                
+                Tugasmu: Berikan SATU kalimat petunjuk singkat yang cerdas. 
+                JANGAN berikan jawaban langsung.
+                Bimbing siswa untuk memperhatikan data atau pola tertentu.
+                Gunakan Bahasa Indonesia yang ramah dan memotivasi.
+            `;
+
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }]
+                })
+            });
+
+            const data = await response.json();
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "Maaf, AI sedang sibuk berpikir. Coba gunakan logikamu sendiri dulu ya!";
+            setAiHint(text);
+
+        } catch (error) {
+            console.error("AI Error:", error);
+            setAiHint("Gagal terhubung ke Pakar Logika AI. Silakan coba lagi.");
+        } finally {
+            setIsAiLoading(false);
+        }
+    };
+
+    const callGeminiAnalysis = async () => {
+        setIsAiLoading(true);
+        setAiAnalysis(""); 
+
+        try {
+            const prompt = `
+                Kamu adalah Mr. Hermon, guru Computational Thinking yang suportif.
+                Siswa bernama ${playerName} baru saja menyelesaikan kuis logika.
+                Skor Akhir: ${score} dari 900.
+                Jawaban Benar: ${history.correct} dari ${history.total} soal.
+                
+                Berikan evaluasi singkat (maksimal 3 kalimat) dalam Bahasa Indonesia.
+                1. Puji usaha mereka (sesuai skor).
+                2. Berikan satu saran spesifik tentang pentingnya ketelitian, logika, atau manajemen waktu.
+                3. Akhiri dengan semangat.
+            `;
+
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }]
+                })
+            });
+
+            const data = await response.json();
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "Analisis tidak tersedia saat ini.";
+            setAiAnalysis(text);
+
+        } catch (error) {
+            console.error("AI Error:", error);
+            setAiAnalysis("Maaf, gagal memuat analisis AI.");
+        } finally {
+            setIsAiLoading(false);
+        }
+    };
+
+    // --- Logic Admin/Answer Key ---
+    const handleAdminLogin = (e) => {
+        e.preventDefault();
+        if (adminPassword === "hermonkh") {
+            setShowAdminModal(false);
+            setShowAnswerKey(true);
+            setAdminPassword("");
+            setAdminError("");
+        } else {
+            setAdminError("Password salah!");
+        }
+    };
+
+    // --- Logic Sequence ---
+    const addToSequence = (item) => {
+        if (!sequence.find(s => s.id === item.id)) {
+            setSequence([...sequence, item]);
+        }
+    };
+    const resetSequence = () => setSequence([]);
+    
+    const requestSubmitSequence = () => {
+        setConfirmModal({
+            show: true,
+            message: "Apakah urutan langkah ini sudah logis menurut kelompok kalian?",
+            action: 'submit_sequence'
+        });
+    };
+
+    // --- Logic Choice ---
+    const handleChoiceSelect = (option) => {
+        setSelectedChoiceOption(option); 
+        setConfirmModal({
+            show: true,
+            message: `Yakin memilih jawaban "${option.label}"?`,
+            action: 'submit_choice'
+        });
+    };
+
+    // --- Final Execution ---
+    const executeConfirm = () => {
+        if (confirmModal.action === 'submit_sequence') {
+            const userIds = sequence.map(s => s.id).join(',');
+            const correctIds = currentQuestion.correctOrder.join(',');
+            const isCorrect = userIds === correctIds;
+            proceedNext(isCorrect);
+        } 
+        else if (confirmModal.action === 'submit_choice') {
+            const isCorrect = selectedChoiceOption?.correct || false;
+            proceedNext(isCorrect);
+        }
+        else if (confirmModal.action === 'logout') {
+            handleLogout();
+            setConfirmModal({ show: false, action: null, message: "" });
+        }
+    };
+
+    const cancelConfirm = () => {
+        setConfirmModal({ show: false, action: null, message: "" });
+        if (currentQuestion.type !== 'sequence') {
+            setSelectedChoiceOption(null);
+        }
+    };
+
+    const closeAiModal = () => {
+        setShowAiModal(false);
+        // Timer otomatis lanjut karena useEffect dependency
+    };
+
+    // --- Views ---
+
+    if (showAnswerKey) {
+        return (
+            <div className="min-h-screen bg-slate-100 p-4 md:p-8 font-sans">
+                <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden animate-fade-in border-t-8 border-amber-500">
+                    <div className="bg-slate-50 p-6 border-b border-slate-200 flex justify-between items-center sticky top-0 z-20 shadow-sm">
+                        <div>
+                            <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                                <Key className="text-amber-500" /> Kunci Jawaban & Pembahasan
+                            </h1>
+                            <p className="text-slate-500 text-sm">Hanya untuk Guru / Fasilitator</p>
+                        </div>
+                        <button 
+                            onClick={() => setShowAnswerKey(false)}
+                            className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2 px-4 rounded-lg transition-colors"
+                        >
+                            Tutup
+                        </button>
+                    </div>
+
+                    <div className="p-6 space-y-8 overflow-y-auto max-h-[80vh]">
+                        {gameLevels.map((level) => (
+                            <div key={level.id} className="border-b border-slate-200 pb-8 last:border-0 last:pb-0">
+                                <h2 className="text-xl font-bold text-indigo-700 mb-4 bg-indigo-50 p-2 rounded-lg inline-block">
+                                    {level.title}
+                                </h2>
+                                <div className="space-y-6">
+                                    {level.questions.map((q, idx) => (
+                                        <div key={q.id} className="bg-slate-50 rounded-xl p-5 border border-slate-200">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <h3 className="font-bold text-slate-800 text-lg">
+                                                    {idx + 1}. {q.title}
+                                                </h3>
+                                                <span className="text-xs font-bold bg-white border border-slate-200 px-2 py-1 rounded text-slate-500">
+                                                    {q.type === 'sequence' ? 'Urutan' : 'Pilihan Ganda'}
+                                                </span>
+                                            </div>
+                                            <p className="text-slate-600 mb-4 italic">"{q.instruction}"</p>
+                                            
+                                            <div className="grid md:grid-cols-2 gap-4">
+                                                <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                                                    <h4 className="font-bold text-green-700 text-sm mb-2 flex items-center gap-1">
+                                                        <CheckCircle size={16} /> Jawaban Benar:
+                                                    </h4>
+                                                    {q.type === 'sequence' ? (
+                                                        <ol className="list-decimal pl-5 text-sm font-semibold text-slate-700 space-y-1">
+                                                            {q.correctOrder.map(co => {
+                                                                const item = q.items.find(i => i.id === co);
+                                                                return <li key={co}>{item.text}</li>
+                                                            })}
+                                                        </ol>
+                                                    ) : (
+                                                        <ul className="space-y-1">
+                                                            {q.options.filter(o => o.correct).map(o => (
+                                                                <li key={o.id} className="text-sm font-bold text-slate-700">{o.label}</li>
+                                                            ))}
+                                                        </ul>
+                                                    )}
+                                                </div>
+                                                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                                                    <h4 className="font-bold text-blue-700 text-sm mb-2 flex items-center gap-1">
+                                                        <Lightbulb size={16} /> Pembahasan Logika:
+                                                    </h4>
+                                                    <p className="text-sm text-slate-700 leading-relaxed">
+                                                        {q.explanation}
+                                                    </p>
+                                                    {q.type === 'logic_choice' && (
+                                                        <div className="mt-2 text-xs text-slate-500 border-t border-blue-200 pt-2">
+                                                            <strong>Analisis Opsi Lain:</strong>
+                                                            <ul className="list-disc pl-4 mt-1 space-y-1">
+                                                                {q.options.filter(o => !o.correct).map(o => (
+                                                                    <li key={o.id}>{o.label}: {o.reason}</li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (screen === 'login') {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-100 font-sans relative">
+                <div className="absolute top-6 left-6 md:top-10 md:left-10 text-slate-400 font-bold text-sm tracking-widest bg-white/50 px-3 py-1 rounded-full border border-slate-200">
+                    GURU : MR. HERMON
+                </div>
+
+                <div className="bg-white p-8 rounded-2xl shadow-xl max-w-sm w-full animate-fade-in border-t-8 border-indigo-600">
+                    <div className="flex justify-center mb-4 text-indigo-600">
+                        <Users size={56} />
+                    </div>
+                    <h1 className="text-2xl font-bold text-center mb-2 text-slate-800">Selamat Datang</h1>
+                    <p className="text-center text-slate-500 mb-6 text-sm">Silakan masukkan nama profil untuk mulai bermain.</p>
+                    <form onSubmit={handleLogin} className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Nama Pemain / Kelompok</label>
+                            <input 
+                                type="text" 
+                                value={playerName}
+                                onChange={(e) => setPlayerName(e.target.value)}
+                                className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                                placeholder="Contoh: Kelompok Garuda"
+                                required
+                            />
+                        </div>
+                        <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-all flex justify-center items-center gap-2">
+                            Masuk <ArrowRight size={18} />
+                        </button>
+                    </form>
+                </div>
+            </div>
+        );
+    }
+
+    if (screen === 'welcome') {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-sans">
+                <div className="bg-white text-slate-800 p-8 rounded-2xl shadow-2xl max-w-md w-full text-center animate-fade-in">
+                    <div className="flex justify-center mb-4 text-indigo-600">
+                        <BrainCircuit size={64} />
+                    </div>
+                    <h1 className="text-3xl font-extrabold mb-1">NusaLogika</h1>
+                    <p className="text-indigo-600 font-semibold mb-6">Halo, {playerName}!</p>
+                    
+                    <div className="bg-blue-50 p-4 rounded-xl text-left text-sm text-slate-600 mb-6 space-y-2 border border-blue-100">
+                        <p className="font-bold text-slate-800">Aturan Main:</p>
+                        <ul className="list-disc pl-4 space-y-1">
+                            <li><strong>⏱️ Waktu Terbatas:</strong> 45 detik per soal.</li>
+                            <li><strong>Konfirmasi:</strong> Cek ulang jawaban sebelum kirim.</li>
+                            <li><strong>✨ Bantuan AI:</strong> Gunakan jika benar-benar buntu.</li>
+                        </ul>
+                    </div>
+                    
+                    <button 
+                        onClick={startGame}
+                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl transition-all transform hover:scale-105 flex items-center justify-center gap-2 shadow-lg"
+                    >
+                        <Play size={20} /> Mulai Sekarang
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    if (screen === 'result') {
+        const maxScore = 900;
+        let gradeMessage = "";
+        if (score >= 800) gradeMessage = "Luar Biasa!";
+        else if (score >= 600) gradeMessage = "Bagus!";
+        else gradeMessage = "Perlu Latihan Lagi.";
+
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-100 font-sans relative">
+                <div className="bg-white p-8 rounded-2xl shadow-xl max-w-2xl w-full animate-fade-in border-t-8 border-indigo-500 flex flex-col md:flex-row gap-8 relative">
+                    
+                    {/* BUTTON ANSWER KEY (ADMIN) */}
+                    <button 
+                        onClick={() => setShowAdminModal(true)}
+                        className="absolute bottom-4 right-4 text-slate-300 hover:text-amber-500 transition-colors p-2"
+                        title="Kunci Jawaban (Guru)"
+                    >
+                        <Key size={24} />
+                    </button>
+
+                    {/* Kolom Hasil Personal */}
+                    <div className="flex-1 text-center md:text-left">
+                        <div className="mb-2 text-sm font-bold text-slate-400 uppercase tracking-widest">Laporan Akhir</div>
+                        <h2 className="text-2xl font-bold mb-1 text-slate-800">{playerName}</h2>
+                        
+                        <div className="my-6">
+                            <div className="text-6xl font-black text-indigo-600 mb-1">{score}</div>
+                            <p className="text-slate-400 text-sm">dari total {maxScore}</p>
+                        </div>
+
+                        {/* AI ANALYSIS SECTION */}
+                        <div className="bg-indigo-50 p-4 rounded-lg mb-6 border border-indigo-200">
+                            <h3 className="text-indigo-800 font-bold text-sm mb-2 flex items-center gap-2">
+                                <Sparkles size={16} /> Analisis Mr. Hermon (AI)
+                            </h3>
+                            {isAiLoading ? (
+                                <div className="flex items-center gap-2 text-slate-500 text-sm">
+                                    <Loader2 className="animate-spin" size={16} /> Sedang menganalisis hasilmu...
+                                </div>
+                            ) : aiAnalysis ? (
+                                <p className="text-slate-700 text-sm leading-relaxed italic">"{aiAnalysis}"</p>
+                            ) : (
+                                <button 
+                                    onClick={callGeminiAnalysis}
+                                    className="w-full bg-white hover:bg-indigo-100 text-indigo-600 font-bold py-2 px-4 rounded-lg border border-indigo-200 text-sm transition-colors flex items-center justify-center gap-2"
+                                >
+                                    <Sparkles size={16} /> Minta Evaluasi
+                                </button>
+                            )}
+                        </div>
+
+                        <div className="bg-slate-50 p-4 rounded-lg mb-6 border border-slate-200">
+                            <p className="text-indigo-800 font-bold text-lg mb-1">{gradeMessage}</p>
+                            <p className="text-slate-500 text-sm">Jawaban Benar: {history.correct} / {history.total}</p>
+                        </div>
+
+                        <div className="space-y-3">
+                            <button 
+                                onClick={startGame}
+                                className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 px-6 rounded-xl flex items-center justify-center gap-2"
+                            >
+                                <RefreshCw size={20} /> Main Lagi
+                            </button>
+                            <button 
+                                onClick={handleLogout}
+                                className="w-full bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-600 font-bold py-3 px-6 rounded-xl flex items-center justify-center gap-2 transition-colors"
+                            >
+                                <User size={20} /> Ganti Pemain
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Kolom Leaderboard */}
+                    <div className="flex-1 bg-indigo-50 rounded-xl p-5 border border-indigo-100 flex flex-col h-full">
+                        <div className="flex items-center gap-2 mb-4 text-indigo-800 font-bold border-b border-indigo-200 pb-2">
+                            <Trophy size={20} className="text-amber-500" />
+                            <span>Papan Peringkat Kelas</span>
+                        </div>
+                        
+                        <div className="overflow-y-auto max-h-[300px] pr-2 space-y-2">
+                            {leaderboard.map((entry, idx) => {
+                                const isCurrentUser = entry.name === playerName && entry.score === score; // Simple check
+                                return (
+                                    <div 
+                                        key={idx} 
+                                        className={`flex items-center justify-between p-3 rounded-lg border text-sm transition-all
+                                            ${isCurrentUser 
+                                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-md scale-[1.02]' 
+                                                : 'bg-white text-slate-700 border-slate-200'}`}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className={`font-bold w-6 text-center ${idx < 3 && !isCurrentUser ? 'text-amber-500' : ''}`}>
+                                                {idx + 1}
+                                            </div>
+                                            <div className="font-semibold truncate max-w-[120px]">{entry.name}</div>
+                                        </div>
+                                        <div className="font-bold">{entry.score}</div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                </div>
+
+                {/* MODAL ADMIN PASSWORD */}
+                {showAdminModal && (
+                    <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50 backdrop-blur-sm animate-fade-in">
+                        <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                                    <Lock size={18} className="text-amber-500"/> Akses Guru
+                                </h3>
+                                <button onClick={() => setShowAdminModal(false)} className="text-slate-400 hover:text-slate-600"><XCircle size={20}/></button>
+                            </div>
+                            <form onSubmit={handleAdminLogin}>
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium text-slate-600 mb-1">Masukkan Password</label>
+                                    <input 
+                                        type="password"
+                                        value={adminPassword}
+                                        onChange={(e) => setAdminPassword(e.target.value)}
+                                        className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                                        placeholder="******"
+                                        autoFocus
+                                    />
+                                    {adminError && <p className="text-red-500 text-xs mt-1">{adminError}</p>}
+                                </div>
+                                <button type="submit" className="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 rounded-xl">
+                                    Buka Kunci Jawaban
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    }
+
+    // --- GAME SCREEN ---
+    return (
+        <div className="min-h-screen bg-slate-100 flex flex-col font-sans text-slate-800">
+            {/* Header */}
+            <div className="bg-white shadow-sm p-4 flex justify-between items-center px-4 md:px-8 sticky top-0 z-10">
+                <div className="flex items-center gap-4">
+                    {/* HOME BUTTON */}
+                    <button 
+                        onClick={requestLogout}
+                        className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                        title="Kembali ke Halaman Utama"
+                    >
+                        <Home size={22} />
+                    </button>
+
+                    <div className="flex items-center gap-2 border-l border-slate-200 pl-4">
+                        <div className="bg-indigo-100 p-2 rounded-lg text-indigo-700">
+                            <BrainCircuit size={20} />
+                        </div>
+                        <div className="hidden md:block font-bold text-slate-700">NusaLogika</div>
+                    </div>
+                </div>
+                
+                <div className="flex items-center gap-4">
+                    {/* TIMER */}
+                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border font-mono font-bold transition-all
+                        ${timeLeft <= 10 ? 'bg-red-50 text-red-600 border-red-200 animate-pulse' : 'bg-slate-50 text-slate-700 border-slate-200'}`}>
+                        <Clock size={18} />
+                        <span>00:{timeLeft.toString().padStart(2, '0')}</span>
+                    </div>
+
+                    <div className="hidden sm:flex items-center gap-2 text-sm font-bold text-slate-600 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-200">
+                        <User size={16} className="text-indigo-500" />
+                        <span className="truncate max-w-[100px]">{playerName}</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* Main Content */}
+            <main className="flex-grow p-4 md:p-6 max-w-3xl mx-auto w-full pb-20">
+                
+                {/* Progress Bar Simple */}
+                <div className="mb-4 flex gap-2">
+                    {gameLevels.map((lvl, idx) => (
+                        <div key={lvl.id} className={`h-2 flex-1 rounded-full ${idx <= levelIdx ? 'bg-indigo-500' : 'bg-slate-200'}`}></div>
+                    ))}
+                </div>
+
+                {/* HELP & TIPS ROW */}
+                <div className="mb-4 flex gap-2 overflow-x-auto pb-2">
+                    {/* TIPS MANUAL */}
+                    <button 
+                        onClick={() => setShowTip(!showTip)}
+                        className="flex items-center gap-2 text-sm font-bold text-amber-600 bg-amber-50 hover:bg-amber-100 px-4 py-2 rounded-full transition-colors border border-amber-200 shadow-sm whitespace-nowrap"
+                    >
+                        <Lightbulb size={16} /> 
+                        {showTip ? "Tutup Tips" : "Tips Manual"}
+                    </button>
+
+                    {/* AI HINT BUTTON */}
+                    <button 
+                        onClick={callGeminiHint}
+                        disabled={isAiLoading}
+                        className="flex items-center gap-2 text-sm font-bold text-indigo-600 bg-white hover:bg-indigo-50 px-4 py-2 rounded-full transition-colors border border-indigo-200 shadow-sm whitespace-nowrap"
+                    >
+                        {isAiLoading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                        Tanya Logika AI
+                    </button>
+                </div>
+                
+                {/* TIPS CONTENT */}
+                {showTip && (
+                    <div className="mb-4 bg-amber-50 border-l-4 border-amber-400 p-4 rounded-r-lg text-slate-700 text-sm animate-fade-in shadow-sm">
+                        <span className="font-bold block mb-1">💡 Tips Strategi:</span>
+                        {currentLevel.tip}
+                    </div>
+                )}
+
+                {/* AI HINT MODAL/POPUP */}
+                {showAiModal && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm animate-fade-in">
+                        <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl border-t-8 border-indigo-500">
+                            <div className="flex flex-col items-center text-center mb-4">
+                                <div className="bg-indigo-100 p-3 rounded-full text-indigo-600 mb-3">
+                                    {isAiLoading ? <Loader2 size={32} className="animate-spin" /> : <Sparkles size={32} />}
+                                </div>
+                                <h3 className="text-xl font-bold text-slate-800">Pakar Logika AI</h3>
+                            </div>
+                            
+                            <div className="bg-indigo-50 p-4 rounded-xl text-slate-700 text-sm leading-relaxed mb-6 border border-indigo-100 min-h-[100px] flex items-center justify-center">
+                                {isAiLoading ? "Sedang menganalisis soal untukmu..." : aiHint}
+                            </div>
+                            
+                            <button onClick={closeAiModal} className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 rounded-xl">
+                                Mengerti, Terima Kasih!
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Question Card */}
+                <div className="bg-white rounded-2xl shadow-lg p-6 mb-6 animate-fade-in relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-2 h-full bg-indigo-500"></div>
+                    <div className="flex justify-between items-start mb-2">
+                        <span className="text-xs font-bold text-indigo-500 uppercase tracking-wider">{currentLevel.title}</span>
+                        <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded">Soal {questionIdx + 1}/{currentLevel.questions.length}</span>
+                    </div>
+                    <h2 className="text-xl font-bold text-slate-800 mb-2">{currentQuestion.title}</h2>
+                    <p className="text-slate-600 leading-relaxed text-lg">{currentQuestion.instruction}</p>
+                    
+                    {/* Context Data */}
+                    {currentQuestion.dataContext && (
+                        <div className="mt-4 bg-slate-50 p-4 rounded-xl border border-slate-200 grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
+                            {Object.entries(currentQuestion.dataContext).map(([key, val]) => (
+                                <div key={key} className="bg-white p-2 rounded-lg shadow-sm border border-slate-100">
+                                    <div className="text-xs text-slate-400 uppercase tracking-wider font-bold mb-1">{key}</div>
+                                    <div className="font-bold text-indigo-700 text-sm">{val}</div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* Interactive Area */}
+                <div className="animate-fade-in">
+                    
+                    {/* TYPE: SEQUENCE */}
+                    {currentQuestion.type === 'sequence' && (
+                        <div className="space-y-6">
+                            {/* Drop Zone */}
+                            <div className="bg-indigo-50 min-h-[120px] rounded-xl border-2 border-dashed border-indigo-300 p-4 flex flex-col gap-2 justify-center items-center transition-all">
+                                {sequence.length === 0 ? (
+                                    <div className="text-center p-4">
+                                        <p className="text-indigo-400 font-bold mb-1">Area Jawaban</p>
+                                        <p className="text-indigo-300 text-sm">Ketuk pilihan di bawah sesuai urutan langkah yang logis.</p>
+                                    </div>
+                                ) : (
+                                    sequence.map((item, idx) => (
+                                        <div key={idx} className="bg-white shadow-sm border border-indigo-100 px-4 py-3 rounded-lg w-full flex items-center gap-3 animate-fade-in">
+                                            <div className="bg-indigo-600 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0">{idx + 1}</div>
+                                            <span className="text-slate-700 font-medium">{item.text}</span>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+
+                            {/* Options Grid */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {currentQuestion.items.map((item) => {
+                                    const isSelected = sequence.find(s => s.id === item.id);
+                                    const Icon = item.icon;
+                                    return (
+                                        <button 
+                                            key={item.id}
+                                            onClick={() => addToSequence(item)}
+                                            disabled={!!isSelected}
+                                            className={`p-4 rounded-xl text-left font-medium transition-all shadow-sm border flex items-center gap-3
+                                                ${isSelected 
+                                                    ? 'bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed opacity-60' 
+                                                    : 'bg-white border-slate-200 hover:border-indigo-400 hover:shadow-md text-slate-700 active:scale-95'
+                                                }`}
+                                        >
+                                           <div className={`p-2 rounded-lg ${isSelected ? 'bg-slate-100' : 'bg-blue-50 text-blue-600'}`}>
+                                               {Icon && <Icon size={20} />}
+                                           </div>
+                                           <span className="text-sm font-semibold">{item.text}</span>
+                                        </button>
+                                    )
+                                })}
+                            </div>
+
+                            {/* Controls with Confirm Trigger */}
+                            <div className="flex gap-3 pt-2">
+                                <button onClick={resetSequence} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-200 rounded-xl transition-colors">Reset</button>
+                                <button 
+                                    onClick={requestSubmitSequence} 
+                                    disabled={sequence.length !== 4} 
+                                    className="flex-[2] bg-indigo-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl shadow-md transition-transform hover:-translate-y-1 flex justify-center items-center gap-2"
+                                >
+                                    Kirim Jawaban <ArrowRight size={18} />
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* TYPE: CHOICE (Logic & Pattern) */}
+                    {(currentQuestion.type === 'logic_choice' || currentQuestion.type === 'pattern_choice') && (
+                        <div className="grid grid-cols-1 gap-3">
+                            {currentQuestion.options.map((opt) => (
+                                <button
+                                    key={opt.id}
+                                    onClick={() => handleChoiceSelect(opt)}
+                                    className={`p-4 rounded-xl border shadow-sm transition-all text-left group flex flex-col sm:flex-row sm:items-center justify-between gap-2
+                                        ${selectedChoiceOption?.id === opt.id 
+                                            ? 'bg-indigo-50 border-indigo-500 ring-2 ring-indigo-200' 
+                                            : 'bg-white border-slate-200 hover:shadow-md hover:border-indigo-400'
+                                        }`}
+                                >
+                                    <div>
+                                        <div className="font-bold text-lg text-slate-800 group-hover:text-indigo-600">{opt.label}</div>
+                                        {opt.pop && <div className="text-xs text-slate-500 mt-1">{opt.pop}</div>}
+                                    </div>
+                                    {opt.spec && <div className="text-sm font-medium text-slate-500 bg-slate-100 px-3 py-1 rounded-lg self-start sm:self-center">{opt.spec}</div>}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* MODAL CONFIRMATION */}
+                {confirmModal.show && (
+                    <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm animate-fade-in">
+                        <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl transform scale-100 transition-all">
+                            <div className="flex flex-col items-center text-center mb-4">
+                                <div className="bg-amber-100 p-3 rounded-full text-amber-600 mb-3 shadow-sm">
+                                    <AlertOctagon size={40} />
+                                </div>
+                                <h3 className="text-xl font-bold text-slate-800">
+                                    {confirmModal.action === 'logout' ? 'Keluar Permainan?' : 'Cek Jawaban'}
+                                </h3>
+                            </div>
+                            
+                            <p className="text-slate-600 mb-8 text-center leading-relaxed text-sm">
+                                {confirmModal.message} <br/>
+                                <span className="text-slate-400 text-xs mt-2 block">
+                                    {confirmModal.action === 'logout' ? '' : '(Jawaban tidak bisa diubah setelah ini)'}
+                                </span>
+                            </p>
+                            
+                            <div className="flex gap-3">
+                                <button 
+                                    onClick={cancelConfirm} 
+                                    className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl transition-colors"
+                                >
+                                    {confirmModal.action === 'logout' ? 'Batal' : 'Koreksi Lagi'}
+                                </button>
+                                <button 
+                                    onClick={executeConfirm} 
+                                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl shadow-lg transition-transform hover:scale-[1.02]"
+                                >
+                                    Ya, Yakin!
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+            </main>
+        </div>
+    );
+}
